@@ -57,23 +57,42 @@ defmodule PhoenixActiveLinkTest do
 
   test "active_link without :wrap_tag" do
     assert active_link(conn(path: "/"), "Link", to: "/foo") == link("Link", to: "/foo", class: "")
-    assert active_link(conn(path: "/foo"), "Link", to: "/foo") == link("Link", to: "/foo", class: "active")
-    assert active_link(conn(path: "/foo"), "Link", to: "/foo", class: "bar") == link("Link", to: "/foo", class: "active bar")
-    link = active_link(conn(path: "/foo"), "Link", to: "/foo", class: "bar", class_active: "enabled")
+
+    assert active_link(conn(path: "/foo"), "Link", to: "/foo") ==
+             link("Link", to: "/foo", class: "active")
+
+    assert active_link(conn(path: "/foo"), "Link", to: "/foo", class: "bar") ==
+             link("Link", to: "/foo", class: "active bar")
+
+    link =
+      active_link(conn(path: "/foo"), "Link", to: "/foo", class: "bar", class_active: "enabled")
+
     assert link == link("Link", to: "/foo", class: "enabled bar")
-    link = active_link(conn(path: "/bar"), "Link", to: "/foo", class: "bar", class_inactive: "disabled")
+
+    link =
+      active_link(
+        conn(path: "/bar"),
+        "Link",
+        to: "/foo",
+        class: "bar",
+        class_inactive: "disabled"
+      )
+
     assert link == link("Link", to: "/foo", class: "disabled bar")
   end
 
   test "active_link with a block" do
     content = content_tag(:p, "Hello")
-    expected = link(to: "/foo", class: "") do
-      content
-    end
 
-    result = active_link(conn(path: "/"), to: "/foo") do
-       content
-    end
+    expected =
+      link to: "/foo", class: "" do
+        content
+      end
+
+    result =
+      active_link conn(path: "/"), to: "/foo" do
+        content
+      end
 
     assert result == expected
   end
@@ -82,18 +101,75 @@ defmodule PhoenixActiveLinkTest do
     expected = content_tag(:li, link("Link", to: "/foo", class: "active"), class: "active")
     assert active_link(conn(path: "/foo"), "Link", to: "/foo", wrap_tag: :li) == expected
 
-    expected = content_tag(:li, link("Link", to: "/foo", class: "disabled"), class: "disabled foo")
-    link = active_link(conn(path: "/bar"), "Link", to: "/foo", class_inactive: "disabled", wrap_tag: :li, wrap_tag_opts: [class: "foo"])
+    expected =
+      content_tag(:li, link("Link", to: "/foo", class: "disabled"), class: "disabled foo")
+
+    link =
+      active_link(
+        conn(path: "/bar"),
+        "Link",
+        to: "/foo",
+        class_inactive: "disabled",
+        wrap_tag: :li,
+        wrap_tag_opts: [class: "foo"]
+      )
+
     assert link == expected
   end
 
+  test "active_path? when :active is :inclusive_with_params" do
+    assert active_path?(
+             conn(path: "/foo", query_string: "bar=2&baz=2"),
+             to: "/foo",
+             active: :inclusive_with_params
+           )
+
+    assert active_path?(
+             conn(path: "/foo", query_string: "bar=2&baz=2"),
+             to: "/foo?baz=2",
+             active: :inclusive_with_params
+           )
+
+    assert active_path?(
+             conn(path: "/foo", query_string: "bar%5Bx%5D=2&bar%5By%5D=2"),
+             to: "/foo?bar[x]=2",
+             active: :inclusive_with_params
+           )
+
+    assert active_path?(
+             conn(path: "/foo", query_string: "bar[x]=2&bar[y]=2"),
+             to: "/foo?bar[x]=2",
+             active: :inclusive_with_params
+           )
+
+    refute active_path?(
+             conn(path: "/foo", query_string: "bar=2&baz=2"),
+             to: "/foo?baz=2&bax=6",
+             active: :inclusive_with_params
+           )
+
+    refute active_path?(
+             conn(path: "/foo", query_string: "bar[x]=2&bar[y]=2"),
+             to: "/foo?bar[x]=2&bar[z]=6",
+             active: :inclusive_with_params
+           )
+
+    refute active_path?(
+             conn(path: "/foo", query_string: "bar=2&baz=2"),
+             to: "/foobar?baz=2",
+             active: :inclusive_with_params
+           )
+  end
+
   test "customize defaults" do
-    Application.put_env(:phoenix_active_link, :defaults, [wrap_tag: :li])
+    Application.put_env(:phoenix_active_link, :defaults, wrap_tag: :li)
     expected = content_tag(:li, link("Link", to: "/foo", class: "active"), class: "active")
     assert active_link(conn(path: "/foo"), "Link", to: "/foo") == expected
 
-    Application.put_env(:phoenix_active_link, :defaults, [class_active: "enabled"])
-    assert active_link(conn(path: "/foo"), "Link", to: "/foo") == link("Link", to: "/foo", class: "enabled")
+    Application.put_env(:phoenix_active_link, :defaults, class_active: "enabled")
+
+    assert active_link(conn(path: "/foo"), "Link", to: "/foo") ==
+             link("Link", to: "/foo", class: "enabled")
   after
     Application.put_env(:phoenix_active_link, :defaults, [])
   end
