@@ -24,6 +24,10 @@ defmodule PhoenixActiveLink do
 
   use Phoenix.HTML
 
+  import Plug.Conn
+
+  alias Plug.Conn.Query
+
   @opts ~w(active wrap_tag class_active class_inactive active_disable wrap_tag_opts)a
 
   @doc """
@@ -93,6 +97,10 @@ defmodule PhoenixActiveLink do
         Both can be the `:any` symbol to match any controller or action.
     * `:exact_with_params`     - Will return `true` if the current path and the link path are exactly the same,
        including trailing slashes and query string as is.
+    * `:inclusive_with_params` - Will return `true` if the current path is equal to the link path and the query params of the current path are included to the link path.
+
+      For example, `active_path?(conn, to: "/foo?bar=2")` will return `true` if the path is `"/foo?bar=2"` or `"/foo?baz=2&bar=2"`.
+      For example, `active_path?(conn, to: "/foo?bar=2")` will return `false` if the path is `"/foobaz?bar=2"`.
 
   ## Examples
 
@@ -103,6 +111,7 @@ defmodule PhoenixActiveLink do
   active_path?(conn, to: "/foo", active: ~r(^/foo/[0-9]+))
   active_path?(conn, to: "/foo", active: [{MyController, :index}, {OtherController, :any}])
   active_path?(conn, to: "/foo?bar=baz%20foo", active: :exact_with_params)
+  active_path?(conn, to: "/foo?baz=2", active: :inclusive_with_params)
   ```
 
   """
@@ -134,6 +143,9 @@ defmodule PhoenixActiveLink do
       :exact_with_params ->
         request_path_with_params(conn) == to
 
+      :inclusive_with_params ->
+        compare_path_and_params(conn, to)
+
       _ ->
         false
     end
@@ -159,6 +171,26 @@ defmodule PhoenixActiveLink do
       query_string -> conn.request_path <> "?" <> query_string
     end
   end
+
+  defp compare_path_and_params(conn, to) do
+    %{query_params: request_params} = fetch_query_params(conn)
+
+    with [path, query_params] <- String.split(to, "?"),
+         true <- conn.request_path == path do
+      decoded_params =
+        query_params
+        |> Query.decode()
+
+      map_include?(request_params, decoded_params)
+    else
+      [path] -> conn.request_path == path
+      false -> false
+    end
+  end
+
+  defp map_include?(map, {key, %{} = value}), do: map_include?(map[key], value)
+  defp map_include?(map, {key, value}), do: map[key] == value
+  defp map_include?(in_map, %{} = map), do: Enum.all?(map, &map_include?(in_map, &1))
 
   defp wrap_tag_opts(extra_class, opts) do
     Keyword.get(opts, :wrap_tag_opts, [])
